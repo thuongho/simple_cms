@@ -1,0 +1,1161 @@
+15.1 Challenge Admin CRUD
+Challenge Objectives
+
+Model
+- define a method #name which returns first_name and last_name with a space between
+
+- define a named scope called #sorted that orders by last_name, then first_name
+
+Controller
+- generate AdminUsersController
+- remove the auto-generated routes
+- use 'admin' layout
+- restrict access to all actions to logged-in users
+- actions: index, new, create, edit, update, delete, destroy
+- (no show action)
+- index: AdminUsers sorted by last_name, then first_name
+- write all other actions yourself from scratch
+- use strong parameters to permit mass-assignment
+
+Views
+- set the HTML page title in each template(@page_title)
+- utilize view helpers(link_to, mail_to, pluralize, cycle)
+- utilize form helpers(form_for, label, text_field, password_field, submit_tag)
+- display form errors using form errors
+- add a link in access/idex.html.erb to the admin users CRUD
+- add a link from admin_users/index.html.erb back to the main menu
+
+15.2 Solution Admin CRUD
+
+1. start with the model
+
+models > admin_user.rb
+- define two new methods
+
+def name
+  "#{first_name} #{last_name}"
+  # Or: first_name + ' ' + last_name
+  # Or: [first_name, last_name].join(' ')
+end
+- def name which returns first name and last name with space in between
+- interpolation is the simplest
+
+adds a scope for sorted
+scope :sorted, lambda { order("last_name ASC, first_name ASC")}
+- it is not ambiguous, so he didn't need to add adminuser.last_name and adminuser.first_name, since there is only one thing in his table that is called first_name and last_name
+
+2. move to the controller
+rails generate controller AdminUsers index new edit delete
+
+go to config > routes.rb
+- remove the auto-generated routes
+
+go to controllers > admin_users_controller
+- start to write the code
+
+layout 'admin'
+
+before_action :confirm_logged_in
+- make sure a user is logged in before they can do any of these actions
+
+def index
+  @admin_users = AdminUser.sorted
+end
+- gonna have the admin users listed and sorted
+
+def new
+  @admin_user = AdminUser.new
+end
+- this is just to have a new object on the page
+- this allows people to submit a new form
+
+def create
+  @admin_user = AdminUser.new(admin_user_params)
+  if @admin_user.save
+    flash[:notice] = 'Admin user created.'
+    redirect_to(:action => 'index')
+  else
+    render("new")
+  end
+end
+- once someone submits the new form, it will make a new admin user out it
+- it will save the user and send them to index
+
+def edit
+  @amdin_user = AdminUser.find(params[:id])
+end
+- find the admin user and let them make edits to the form
+
+def update
+  @admin_user = AdminUser.find(params[:id])
+  if @admin_user.update_attributes(admin_user_params)
+    flash[:notice] = 'Admin user updated.'
+    redirect_to(:action => 'index')
+  else
+    render("edit")
+  end
+end
+- update the attributes with the new parameters
+
+def delete
+  @admin_user = AdminUser.find(params[:id])
+end
+- ask the user to confirm if they want to delete the admin user
+
+def destroy
+  AdminUser.find(params[:id]).destroy
+  flash[:notice] = "Admin user destroyed."
+  redirect_to(:action => 'index')
+end
+- permanently delete the admin user
+
+for the mass assignment, he is using admin_user_params
+- define in private
+
+private 
+def admin_user_params
+  params.require(:admin_user).permit(:first_name, :last_name, :email, :username, :password)
+end
+
+3. onto the views and work with the templates
+
+views > admin_users > index
+<%= @page_title = "Admin Users List" %>
+- setting a page title
+
+<%= link_to("<< Back to Menu", {:controller => 'access', :action => 'index'}, :class => 'back-link') %>
+
+<div class="user index">
+  <h2>Admin Users</h2>
+- list of admin users
+
+  <%= link_to('Add New Admin User', {:action => 'new'}, :class => 'action new') %>
+
+  <div><%= pluralize(@admin_users.size, 'admin user') %> found</div>
+  - it will show how many admin users we have in the db
+
+  <table class="listing" summary="Admin users list">
+    <tr>
+      <th>Username</th>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Actions</th>
+    </tr>
+    <% @admin_users.each do |admin_user| %>
+    <tr class="<%= cycle('odd', 'even') %>">
+      <td><%= admin_user.username %></td>
+      <td><%= admin_user.name %></td>
+      #name is the new method, first name, last name
+      <td><%= mail_to(admin_user.email) %></td>
+      <td class="actions">
+        <%= link_to('Edit', {:action => 'edit', :id => admin_user.id, :class => 'action edit'}) %>
+        <%= link_to('Delete', {:action => 'delete', :id => admin_user.id}, :class => 'action delete') %>
+      </td>
+    </tr>
+    <% end %>
+  </table>
+</div>
+
+views > admin_users > new.html
+<% @page_title = 'Create Admin User' %>
+
+<%= link_to("<< Back to List", {:action => 'index'}, :class => 'back-link') %>
+
+<div class="user new">
+  <h2>Create Admin User</h2>
+
+  <%= form_for(:admin_user, :url => {:action => 'create'}) do |f| %>
+  - submit to the create action
+
+    <%= render(:partial => 'form', :locals => {:f => f}) %>
+    - most of the fields will be on the form
+
+    <div class="form-buttons">
+      <%= submit_tag('Create Admin User') %>
+    </div>
+  <% end %>
+</div>
+
+views > admin_users > edit.html
+- almost the same as new.html
+
+<% @page_title = "Edit Admin User: #{@admin_user.name}" -%>
+
+<%= link_to("<< Back to List", {:action => 'index'}, :class => 'back-link') %>
+
+<div class="user edit">
+  <h2>Edit Admin User</h2>
+
+  <%= form_for(:admin_user, :url => {:action => 'update', :id => admin_user.id}) do |f| %>
+  - since we're doing an update, need to find the admin user id
+
+    <%= render(:partial => 'form', :locals => {:f => f}) %>
+
+    <div class="form-buttons">
+      <%= submit_tag('Update Admin User') %>
+    </div>
+  <% end %>
+</div>
+
+views > admin_users > _form.html.erb
+- create a form partial
+
+<%= error_messages_for(@admin_user) %>
+- this will display the error message
+
+<table summary="Admin user form fields">
+  <tr>
+    <th><%= f.label(:first_name) %></th>
+    <td><%= f.text_field(:first_name) %></td>
+  </tr>
+  <tr>
+    <th><%= f.label(:last_name) %></th>
+    <td><%= f.text_field(:last_name) %></td>
+  </tr>
+  <tr>
+    <th><%= f.label(:email) %></th>
+    <td><%= f.text_field(:email) %></td>
+  </tr>
+  <tr>
+    <th><%= f.label(:username) %></th>
+    <td><%= f.text_field(:username) %></td>
+  </tr>
+  <tr>
+    <th><%= f.label(:password) %></th>
+    <td><%= f.password_field(:password) %></td>
+  </tr>
+</table>
+- not doing a password confirmation here, but it is optional
+- he tends to not do it for admin area, but he will do it for public areas
+
+views > admin_users > delete.html.erb
+
+<% @page_title = "Delete Admin User: #{@admin_user.name}" %>
+
+<%= link_to("<< Back to List", {:action => 'index'}, :class => 'back-link') %>
+
+<div class="user delete">
+  <h2>Delete Admin User</h2>
+
+  <%= form_for(:admin_user, :url => {:action => 'destroy', :id => @admin_user.id}) do |f| -%>
+
+    <p>Are you sure you want to permanently delete this admin user?</p>
+
+    <p class="reference-name"><%= @admin_user.name %></p>
+
+    <div class="form-buttons">
+      <%= submit_tag("Delete Admin User") %>
+    </div>
+  <% end %>
+</div>
+- it will submit this form to the destroy with admin id
+
+views > access > index
+- update the following
+
+<div class="identity">Logged in as: <%= session[:username] %></div>
+
+<li><%= link_to("Manage Admin Users", :controller => 'admin_users') %>
+
+15.3 Nesting Pages
+Each area should have a controller for its own CRUD
+The problem is that the pages are not connected
+
+Nesting Pages in Subjects
+apps/views/subjects/index
+- links to PagesController index action
+- sends :subject_id in link parameters
+
+PagesController
+- before_action finds subject using params[:subject_id]
+- index action scopes @pages by subject
+- new action uses subject to pre-select the page's subject
+- all redirects need to preserve params[:subject_id]
+
+app/views/pages
+- all links and form actions need to preserve :subject_id
+
+app > views > subjects > index
+- add page link for each subject, the page is only for that subject
+<%= link_to("View Pages", {:controller => 'pages', :subject_id => subject.id}, :class => 'action show') %>
+- we can say :action => 'index', but by default it is index so we don't need to put it
+- the list doesn't just belong to one subject, it shows all the pages list
+- need to modify the pages controller code
+
+controller > pages 
+
+before_action :find_subject
+
+private
+
+def find_subject
+  if params[:subject_id]
+    @subject = Subject.find(params[:subject_id])
+  end
+end
+- create this method so that every single one of the methods up top can call upon this method
+- if it has subject id sent, it will find subject id in db and set subject equal to it
+
+change these codes
+
+def index
+  @pages = Page.where(:subject_id => @subject.id).sorted
+end
+- we can do it this way, but a better way would be
+
+def index
+  @pages = @subject.pages.sorted
+end
+- this is the same as find the pages where subject id equals subject id
+
+def new
+  @page = Page.new({:subject_id => @subject.id, :name => "Default"})
+
+need to have all redirect maintain subject id
+- any time we see redirect, add , :subject_id => @subject.id
+- create, update, and destroy
+
+go to pages template to add , :subject_id => @subject.id
+views > pages > index, etc
+
+views > pages > index 
+<%= link_to("<< Back to Subjects", {:controller => 'subject', :action => 'index', :class => 'back-link') %>
+- add link back to subjects
+
+views > subjects
+- add link back to menu
+<%= link_to("<< Back to Menu", {:controller => 'access', :action => 'index'}, :class => 'back-link') %>
+- taken from views/admin_users/index
+
+views > access > index
+- remove manage pages and sections because we will not go there directly but through subjects
+- change manage subjects to manage contents
+
+Do it for sections to pages
+ 
+1. app > views > pages > index
+- add
+<%= link_to("View Sections". {:controller => 'sections', :page_id => page.id}, :class => 'action show') %>
+- now it knows this section belongs to this page.id
+
+2. controller > sections
+- add 
+before_action :find_page
+
+3.
+- next def :find_page
+private
+def find_page
+  if params[:page_id]
+    @page = Page.find(params[:page_id])
+  end
+end
+
+4.
+- update these:
+def index
+  @sections = @page.sections.sorted
+end
+
+def new
+  @section = Section.new({:page_id => @page.id, :name => "Default"})
+  @pages = Page.order('position ASC')
+  @section_count = Section.count + 1
+end
+
+update any redirect with , :page_id => @page.id
+redirect_to(:action => 'index', :page_id => @page.id)
+
+5.
+views > sections > index
+<%= link_to("<< Back to Pages", {:controller => 'pages', :action => 'index', :subject_id => @page.subject_id}, :class => 'back-link') %>
+- add link back to pages
+
+15.4 Adding Ruby Gems
+For the nested page with 'Sections'
+- <%= link_to("<< Back to Pages", {:controller => 'pages', :action => 'index', :subject_id => @page.subject}) %>
+- for the back to pages link, we need to make sure we are getting the subject id and not the page id
+
+
+controllers > sections
+- limit the scope to only the page
+def new
+  @pages = @page.subject.pages.sorted
+
+datawarehousing issues right now
+- use a gem
+
+Some useful gems
+acts_as_list
+- manage objects with positions
+
+will_paginate
+- pagination
+- so we can have pages of results
+
+exception_notification
+- send emails when errors occur
+
+paperclip
+- manage files uploaded via web forms
+
+carrierwave
+- manage files uploaded via web forms
+
+delayed_job
+- queue tasks to run later
+
+friendly_id
+- semantic URLs
+- might incorp title of an article
+
+devise
+- user authentication
+
+restful_authentication
+- user authentication
+
+authlogic
+- user authentication
+
+cancan
+- user/action authorization
+- what can someone do, what permissions
+
+rmagick
+- image resizing
+
+nokogiri 
+- HTML parser  
+- take HTML and parse it to find what it contains
+
+activemerchant
+- credit card processing
+
+acts_as_tree
+- manage tree-like structures
+
+acts_as_taggable
+- folksonomy / tags
+
+geokit
+- geocoding / mapping
+
+country_select
+- select-option choices for countries
+
+Best way to get Ruby gems
+rubygems.org
+- search for acts_as_list
+-- look for the one that has the most downloads
+-- put it in gemfile
+
+gemfile
+gem "acts_as_list", "~> 0.3.0"
+- ~> says minor updates are acceptable
+
+bundle install
+
+15.5 Sort Positions
+rubygems.org
+- github
+-- readme.md
+-- it instructs how to use the gem
+
+models > subject.rb
+acts_as_list
+- it is a method call that will load in 
+- it auto sorts the items on the list
+- it will act within the scope
+
+models > page.rb
+acts_as_list :scope => :subject
+- having multiple page 1 will not be a problem
+- it will always check for the position base on subject id
+
+15.6 Callbacks
+ActiveRecord Callbacks
+- callback is reference to a method that is set to execute some time in the future
+- when we get to that time, it will pause and execute that callback
+
+callback times
+create
+- before_validation
+- after_validation
+- before_save
+- before_create
+- after_create
+- after_save
+
+update
+- before_validation
+- after_validation
+- before_save
+- before_update
+- after_update
+- after_save
+
+destroy
+- before_destroy
+- after_destroy
+
+automatic methods that will be call right before or after
+
+models > page.rb
+- after acts_as_list
+
+before_validation :add_default_permalink
+- if the user doesn't give a permalink, we will invent one for them before it gets validate
+
+after_save :touch_subject
+
+after_destory :delete_related_sections
+
+private
+
+def add_default_permalink
+  if permalink.blank?
+    self.permalink = "#{id}-#{name.parameterize}"
+  end
+end
+- only this class has access to it (private)
+- it is a good idea when setting an attribute to set it to self
+- parameterize will take name string and turn it into something suitable for URL string
+
+def touch_subject
+  subject.touch
+end
+- touch is similar to subject.update_attribute(:update_at, Time.now)
+-- updates the timestamp
+
+add touch_subject to section as well
+models > section.rb
+private
+
+def touch_page
+  page.touch
+end
+
+def delete_related_sections
+  self.sections.each do |section|
+    # Or perhaps instead of destroy, you would
+    # move them to another page.
+    # section.destroy
+  end
+end
+- once we delete this page, we will then delete all sections below it
+
+Rails has callbacks that is built in
+- example has_many :pages, :dependent => :destroy
+- does the same thing as delete_related_sections
+
+15.7 Public Area
+PublicController
+- new layout 'public'
+- no user authentication required
+
+index
+- template with introductory text
+- default route for site
+
+show
+- display diff page content
+- route: localhost:3000/show/some-page-permalink
+- find visible page matching :permalink
+- if found, display page and its visible sections(sorted)
+- if not found, redirect to the index page
+
+rails generate controller Public index show
+- some conflict, say n to not overwrite
+
+config > route.rb
+- comment out the auto generated get
+- change
+root 'public#index'
+- add
+get 'show/:permalink', :to => 'public#show'
+- anytime we get show/"some string", route to public#show
+
+controller > public_controller
+
+layout 'admin'
+
+views > layouts > 
+- copy from admin and modify
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Simple CMS<%= " | #{@page_title}" if @page_title %></title>
+    <%= stylesheet_link_tag('application', :media => 'all') %>
+  </head>
+  <body>
+  <div id="header">
+    <h1>Simple CMS</h1>
+  </div>
+  <div id="main">
+    <div id="navigation">
+    </div>
+    <div id="content">
+      <%= yield %>
+    </div>
+    <div class="clear"></div>
+  </div>
+  <div id="footer">
+    <p id="copyright">&copy; Sam Ho</p>
+  </div>
+  </body>
+</html>
+
+
+controllers > public_controller
+class PublicController < ApplicationController
+  layout 'public'
+
+  def index
+    # intro text
+  end
+
+  def show
+    @page = Page.where(:permalink => params[:permalink], :visible => true).first
+    if @page.nil?
+      redirect_to(:action => 'index')
+    else
+      # display the page content using show.html.erb
+    end
+  end
+end
+
+views > public > index
+<h2>Welcom to the Simple CMS</h2>
+
+<p>This is my first Ruby on Rails application!</p>
+
+views > public > show
+<% @page_title = @page.name %>
+<h2><%= @page.name %></h2>
+
+<% @page.sections.visible.sorted.each do |section| %>
+  <div class="section">
+    <% case section.content_type %>
+    <% when 'HTML' %>
+      <%= raw(sanitize(section.content, :tags => ['strong', 'em', 'a'])) %>
+    <% when 'text' %>
+      <p><%= section.content %></p>
+    <% end %>
+  </div>
+<% end %>
+- sanitize the page and then let it through raw
+- for the text, we let the normal HTML take action
+
+15.8 Public Navigation
+controllers > public_controller
+
+def index
+  @subjects = Subject.visible.sorted
+end
+- we want this to be for our show page as well
+- DRY
+
+private
+
+def setup_navigation
+  @subjects = Subject.visible.sorted
+end
+
+controllers > public_controller
+- instead of putting it in each page (DRY)
+before action :setup_navigation
+
+views > layout > _navigation.html.erb
+- create this template
+<% subjects ||= [] %>
+- make sure it has some subjects
+- local variable, no @ sign
+
+<ul><% subjects.each do |subject| %>
+- go through each one
+- its already sorted in the controller
+
+  <li>
+    <%= subject.name %>
+    <ul>
+    <% subject.pages.visible.sorted.each do |page| %>
+    - get each page link and sort it
+
+      <li><%= link_to(page.name, :action => 'show', :permalink => page.permalink) %></li>
+      <% end %>
+    </ul>
+  </li>
+  <% end %>
+</ul>
+
+views > layouts > public.html.erb
+<div id="navigation">
+  <%= render(:partial => 'layouts/navigation', :locals => {:subjects => @subjects} ) %>
+</div>
+- render the partial
+- points to navigation, but to be clear, use full path layout/navigation
+- pass in some locals and assign it instance variable 
+- pass it into the partial and the partial will take care of each one of those
+
+views > layouts > _navigation
+<li><%= link_to_unless_current(page.name, :action => 'show', :permalink => page.permalink) %></li>
+- link_to_unless_current makes the current page a text instead of a link
+
+16.1 What is Rest
+REST
+- Representational State Transfer
+- Don't perform procedures
+- Perform state transformations upon resources(model)
+
+Do you need to use REST
+- Default routes(using hashes) work
+- REST is Rails default; optimized for it
+- Most professional Rails developers use REST
+- Gives an application an API for free
+-- API is an application interface, the way other apps can talk to your application
+- Provides conventions, consistent structure, and simplicity
+- Improves application security
+
+REST Paradigm Requirement
+1. Organize code into resources
+- Rails encourage one controller for each model
+
+2. Learn HTTP verbs for working with resources
+- Consider which CRUD actions are suited for each
+
+3. Map a new URL syntax to controller actions
+- Change Rails routes
+
+4. Modify existing links and forms to use new URL syntax
+- Learn about RESTful route helpers
+
+16.2 REST HTTP Verbs
+GET
+- retrieve items from resource
+- links
+- getting info back from the server
+
+POST
+- create new item in resource
+- forms
+
+PUT
+- replace existing item in resource
+- forms
+
+PATCH
+- updating existing item in resource
+- forms
+- changes to a portion of the resource 
+
+DELETE
+- delete existing item in resource
+- forms/links
+
+16.3 RESTful Routes
+# config/routes.rb
+
+resources :subjects do
+  member do
+    get :delete
+  end
+end
+
+16.4 REST Links Forms
+Rails has some helper methods that gives us shortcuts
+
+REST URL Helpers
+{:controller => 'subjects', :action => 'show', :id => 5}
+- subject_page(5)
+
+index
+- subjects_path
+
+new
+- new_subject_path
+
+create
+- subjects_path
+
+show
+- subject_path(:id)
+
+edit
+- edit_subject_path(:id)
+
+update
+- subject_page(:id)
+
+delete
+- delete_subject_path(:id)
+
+destroy
+- subject_path(:id)
+
+helper help get the path
+
+<%= link_to('All Subjects', subjects_path) %>
+<%= link_to('Show Subject', subject_path(@subject.id)) %>
+<%= link_to('Edit Subject', edit_subject_path(@subject.id)) %>
+<%= link_to('Edit Subject', edit_subject_path(@subject.id, :page => 1, :sort => 'name')) %>
+
+REST Form Helpers
+
+form_for(:subject, :url => subject_path(@subject.id), :html => { :method => :patch } ) do |f|
+  ...
+end
+
+- shortcut
+form_for(@subject) do |f|
+  ...
+end
+- work for post and patch
+- for delete, you need to write out the long way
+
+16.5 Nonstandard Resources
+
+resources :admin_users, :except => [:show]
+resources :products, :only => [:index, :show]
+
+resources :subjects do
+  member do
+    get :delete   # delete_subject_path(:id)
+  end
+  - custom create this delete
+  - it creates the helper delete_subject_path
+
+  collection do
+    get :export   # export_subjects_path
+  end
+  - this exports all of the subjects from the db
+end
+- rails auto create the helper according to the action
+
+16.6 Nested Resources
+resources :subjects do
+  member do
+    get :delete
+  end
+
+  resources :pages do
+    member do
+      get :delete
+    end
+  end
+  - put it inside of the block of code using resources
+
+Nesting resources
+- 2 is ideal
+- 3 is allowable
+- anymore and it gets pretty messy
+
+17.1 Understanding Errors
+Error shows up in 3 areas
+- in browser
+- rails server console
+- application log files
+
+controllers > demo_controller.rb
+def make_error
+  # Make guesses for the 3 most common errors:
+  # render(:text => "test" # syntax error
+  # render(:text => @something.upcase) # undefined method
+  # render(:text => "1" + 1) # can't convert type
+end
+
+# render(:text => "test" # syntax error
+- forgot to close parentheses
+
+# render(:text => @something.upcase) # undefined
+- never defined @something, so it is nil
+- nil.upcase is not supported
+
+# render(:text => "1" + 1) # can't convert type
+- all three we will just render text so we don't need a template
+
+rails s
+
+localhost:3000/demo/make_error
+- this refers to the def make_error
+
+# render(:text => "test" # syntax error
+/Users/unclesam/rails_projects/simple_cms/app/controllers/demo_controller.rb:30: syntax error, unexpected keyword_end, expecting ')'
+- it is saying that by the time it got to line 30, it realize that there was an error
+- may need to back track a little
+
+# render(:text => @something.upcase) # undefined
+undefined method `upcase' for nil:NilClass
+- nil didn't know what to do with this method
+Application trace
+- it was going through and it got an error at line 28
+Framework Trace
+- All the info about traveling through the Rails framework until it got to the error
+look at console
+Rails log
+- it tells deprication warning, which will work with rails now but maybe not in the future
+
+# render(:text => "1" + 1) # can't convert type
+no implicit conversion of Fixnum into String
+- it cannot convert implicitly, we will have to do it explicitly
+- ruby is not going to change it for us
+
+log > development.log
+- it has all the info since you started your app
+
+config > environment > development
+config.consider_all_requests_local = true
+- this determines in browser errors
+- in production we will hide it
+
+config.active_support.deprecation = :log
+- this tells it to put the deprecation into the log files
+
+17.2 Logging
+Application Logs vs. Server Logs
+- errors occur before getting to your app will be in server logs
+- rails log file is different
+
+Log level configuration
+- config/environments/development.rb
+-- config.log_level = :debug
+
+- config/environments/production.rb
+-- config.log_level = :info
+
+5 levels
+:debug
+- shows everything, deprecation, errors, details about the templates that get render, sql
+- good for dev
+- its default
+
+:info
+- default for production
+- no sql queries
+- doesn't expose sensitive info from db in log
+- still pretty chatty from all the request
+
+:warn
+- better for production cuz only shows you when things go wrong
+- in practice, warn will take care of :error and :fatal
+
+:error
+- problems that rails was able to recover from
+
+:fatal
+- only show stopping errors
+
+We can write to the log files ourselves
+logger.debug("The name is #{@subject.name}")
+logger.info("Starting the subject update...")
+logger.warn("Invalid log in by #{params[:username]}")
+logger.error("Page #{params[:id]} not found")
+logger.fatal("Expected Rubygem not loaded")
+- if we set prod to info, but we still have debug in there, rails will simply ignore debug
+
+controllers > demo_controller
+def logging
+  logger.debug("This is debug.")
+  logger.info("This is info.")
+  logger.warn("This is warn.")
+  logger.error("This is error.")
+  logger.fatal("This is fatal.")
+  render(:text => 'Logged!')
+end
+- render text back to the browser instead of template
+
+config.log_level = :info
+
+rake log:clear
+- this will delete the log
+
+config > initializers > filter_parameters_logging.rb
+Rails.application.config.filter_parameters += [:password]
+- this filters out any type of password in plain text to the log
+- add :token as well
+-- access token, membership token, forgot my password token
+
+** in production, never go below info
+
+17.3 Debug Techniques
+
+Break problems into pieces
+- Test intermediary steps
+- If ABCD breaks: test A, then AB, then ABC
+- db, model, controller, then view
+
+Rails console
+- move step by step and see all results
+- like holding an object in your hand and examining it
+- he use it more than any other tool
+
+Inspect and debug helper method
+- object.inspect
+<%= debug(object) %>
+- use it in views
+
+Output to Rails server console
+- any "puts" in the code will output to the server console
+- puts "*** got here ****"
+- puts @subjects.inspect
+- only sending to server console
+
+ruby-debug
+- specify a point in the code to pause and yield control to the command line
+- gemfile: gem "ruby-debug"
+- bundle install
+
+17.4 Errors Production
+config/environmets/production.rb
+- config.consider_all_requests_local = false
+- shows us error in browser
+- don't want to show users that private info in production
+- do not show errors in the browser
+- show error pages instead
+- custom error page
+
+HTML error pages
+public/404.html
+- not found
+
+public/500.html
+- internal server erro
+
+public/422.html
+- unprocessable entity
+- something to do with REST
+
+HTML error pages
+- static HTML pages
+-- no ruby codes
+-- no rails helpers
+-- no template layouts
+
+Exception (error) notification
+- send email notification when errors occur
+- ideal for production environment
+- includes info about error, request, session, environment, and backtrace
+** gemfile: gem "exception_notification"
+- bundle install and then config it
+- if he doesn't get email, that means his app is good
+
+18.1 Testing
+Benefits
+- less time spent testing
+- computers are much faster, initiate hundreds of test
+- more accurate testing
+- faster debugging
+- better code
+- confidence
+
+Downside
+- time to learn how to write tests
+- time to write tests
+- time to learn how to write great tests
+
+unit test
+- concern with models
+
+function testing
+- controllers/views, requests
+
+integration testing
+- user stories, sequences of requests
+- testing the entire sequence to make sure it all works
+
+performance testing
+- how fast are requests handled
+
+load testing
+- how many requests can be handled
+
+security testing
+- security vulnerabilities
+
+Testing frameworks and tools
+- by default Rails has built-in Test:Unit
+- other tests are:
+Rspec
+Selenium
+Watir
+Cucumber
+Webrat
+Mocha
+Shoulda
+Rcov
+autotest
+
+TDD
+- test driven development
+
+BDD
+- behavior driven development
+
+* Write tests expressing the desired results, then write code until all tests pass
+
+More on testing
+http://guides.rubyonrails.org/testing.html
+
+18.2 Deploying
+Deploying a Rails app
+- Find an ISP that offers Rails application hosting
+- Install all software on the remote server
+- Choose a web server
+- Get deployment tools
+
+Rails hosting
+Blue box
+Brightbox
+Engine Yard
+Heroku
+Joyent
+Linode
+Rackspace
+Rails Machine
+RailsPlayground
+
+Web server
+- full-featured
+Apache
+Nginx
+Lighttpd
+
+- light-weight
+Passenger/mod_rails
+Unicorn
+Mongrel
+Thin
+-- usually used in conjunction with full-feature
+
+combination good for beginners
+apache + passenger
+
+Deployment Tools
+- get your code onto the remote server
+- FTP software
+Transmit(macs only)
+FileZilla(win only)
+ExpanDrive(both)
+
+Source Code Manager
+Git
+- source code management
+GitHub
+- host projects on here that allow collaboration
+
+Deploy Scripting
+- Capistrano
+- it allows you to script your deployment
+- log into remote server, grab latest version on github, deploy in place of version previously
+
+19.1 Conclusion
+rubyonrails.org
+- has a lot of resources
+
+api.rubyonrails.org
+- tells you everything about how the rails work
+
+guides.rubyonrails.org
+- told by the pros
+
+rubyonrails.org/community
